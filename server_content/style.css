@@ -1,0 +1,465 @@
+* {
+	margin: 0;
+	padding: 0;
+	box-sizing: border-box;
+}
+body {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    background: linear-gradient(133deg,rgba(39, 64, 186, 1) 15%, rgba(14, 148, 158, 1) 59%);
+    min-height: 100vh;
+    padding: 20px;
+}
+.container {
+    max-width: 1200px;
+    margin: 0 auto;
+}
+
+.header {
+    text-align: center;
+    color: white;
+    margin-bottom: 30px;
+}
+
+.header h1 {
+    font-size: 2.5em;
+    margin-bottom: 10px;
+}
+
+.location-info {
+    font-size: 1.1em;
+    opacity: 0.9;
+}
+
+.forecast-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 20px;
+    margin-bottom: 40px;
+}
+
+.weather-card {
+    background: white;
+    border-radius: 15px;
+    padding: 18px;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+    transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+
+.weather-card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 15px 40px rgba(0, 0, 0, 0.4);
+}
+
+.date {
+    font-size: 1.3em;
+    font-weight: bold;
+    color: #333;
+    margin-bottom: 5px;
+}
+
+.day-of-week {
+    color: #666;
+    font-size: 1.1em;
+    margin-bottom: 15px;
+}
+
+.weather-icon {
+    font-size: 3em;
+    margin: 15px 0;
+    text-align: center;
+}
+
+.condition {
+    font-size: 0.95em;
+    color: #555;
+    text-align: center;
+    margin: 10px 0;
+    font-weight: 525;
+    opacity: 0.75;
+}
+
+.temperature {
+    background: linear-gradient(133deg,rgba(110, 130, 230, 1) 0%, rgba(14, 148, 158, 1) 86%);
+    color: white;
+    padding: 15px;
+    border-radius: 10px;
+    margin: 15px 0;
+    text-align: center;
+}
+
+.temperature .label {
+    font-size: 0.9em;
+    opacity: 0.9;
+    margin-bottom: 5px;
+}
+
+.temperature .value {
+    font-size: 1.8em;
+    font-weight: bold;
+}
+
+.details {
+    display: flex;
+    justify-content: space-between;
+    margin-top: 15px;
+    padding-top: 15px;
+    border-top: 1px solid #eee;
+}
+
+.detail-item {
+    flex: 1;
+    text-align: center;
+}
+
+.detail-label {
+    font-size: 0.8em;
+    color: #999;
+    text-transform: uppercase;
+    margin-bottom: 5px;
+}
+
+.detail-value {
+    font-size: 1.1em;
+    color: #333;
+    font-weight: 600;
+}
+
+.current-day {
+    border-left: 5px solid #667eea;
+}
+
+@media (max-width: 768px) {
+    .header h1 {
+        font-size: 1.8em;
+    }
+    
+    .forecast-grid {
+        grid-template-columns: 1fr;
+    }
+    
+    .weather-icon {
+        font-size: 2.5em;
+    }
+}
+
+nav{
+	background-color: white;
+	box-shadow: 3px 3px 5px rgba(0,0,0,0.1);
+}
+
+nav ul{
+	width: 100%;
+	list-style: none;
+	display: flex;
+	justify-content: flex-end;
+	align-items: center;
+}
+nav li{
+	height: 50px;
+}
+nav a{
+	height: 100%;
+	padding: 0 30px;
+	text-decoration: none;
+	display: flex;
+	align-items: center;
+	color: black;
+}
+nav a:hover{
+	background-color: white;
+}
+nav li:first-child{
+	margin-right: auto;
+}
+.sidebar{
+	position: fixed;
+	top: 0;
+	right: 0;
+	height: 100vh;
+	width: 250px;
+	z-index: 999;
+	background-color: rgba(255,255,255,0.5);
+	backdrop-filter: blur(10px);
+	box-shadow: -10px 0 10px rgba(0,0,0,0.1);
+	display: none;
+	flex-direction: column;
+	align-items: flex-start;
+	justify-content: flex-start;
+}
+.sidebar li{
+	width: 100%;
+}
+
+.sidebar a{
+	width: 100%;
+}
+.menu-button{
+	display: none;
+}
+@media(max-width: 800px){
+	.hideOnMobile{
+		display: none;
+	}
+	.menu-button{
+		display: block;
+	}
+}
+@media(max-width: 400px){
+	.sidebar{
+		width: 100%;
+	}
+}
+
+/* Autosuggest dropdown (used by weather.html) */
+.suggestions {
+    position: absolute;
+    background: white;
+    border-radius: 6px;
+    box-shadow: 0 8px 20px rgba(0,0,0,0.15);
+    margin-top: 6px;
+    width: 320px;
+    max-width: 60%;
+    z-index: 40;
+    list-style: none;
+    padding: 6px 0;
+    max-height: 260px;
+    overflow: auto;
+}
+
+/* place suggestions directly under the input within its wrapper */
+.input-wrap { position: relative; display: inline-block; }
+.input-wrap .suggestions { top: 100%; left: 0; margin-top: 6px; width: 320px; max-width: 100%; }
+
+.suggestions li {
+    padding: 8px 12px;
+    cursor: pointer;
+    color: black;
+    justify-content: left;
+}
+
+.suggestions li:hover, .suggestions li[aria-selected="true"] {
+    background: #cecece;
+}
+
+/* small helper to visually hide suggestion list by default; JS toggles display */
+#suggestions { display: none; }
+
+/* Unified card layout used by all views */
+
+.card-main{
+    display: grid;
+    grid-template-columns: minmax(100px, 1fr) minmax(180px, 300px) minmax(100px, 1fr);
+    align-items: start;
+    gap: 12px;
+}
+
+.weather-card .card-left{
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+    
+    margin-right: auto; /* push left metadata to the left when centering */
+    padding-left: 12px; /* slightly reduced inset */
+    justify-self: start;
+}
+
+.progress-container {
+    margin-top: 16px;
+    display: none;
+    align-items: center;
+    gap: 12px;
+}
+
+.progress-track {
+    flex: 1;
+    height: 18px;
+    background: rgba(255, 255, 255, 0.2);
+    border-radius: 999px;
+    overflow: hidden;
+    box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.15);
+}
+
+.progress-bar {
+    height: 100%;
+    width: 0%;
+    background: linear-gradient(90deg, #4f8cff 0%, #3bb4ff 100%);
+    transition: width 0.2s ease, background 0.2s ease;
+}
+
+.progress-bar.progress-success {
+    background: linear-gradient(90deg, #46d26b 0%, #27a94e 100%);
+}
+
+.progress-bar.progress-failure {
+    background: linear-gradient(90deg, #ff5a5a 0%, #d33c3c 100%);
+}
+
+.progress-text {
+    min-width: 60px;
+    color: white;
+    font-size: 0.95rem;
+    text-align: right;
+}
+
+.download-link {
+    margin-top: 10px;
+    color: white;
+    font-size: 0.95rem;
+}
+
+.download-link a {
+    color: #fff;
+    text-decoration: underline;
+}
+
+.weather-card .card-left .meta{
+    display: flex;
+    flex-direction: column;
+}
+
+.weather-card .weather-icon{
+    font-size: 3.5em;
+    margin: 0;
+}
+
+.temp-column{ justify-self: center; display:flex; justify-content:center; }
+/* keep the temp tile aligned toward the top of the card so it sits closer to the top edge */
+.temp-column{ align-self: start;}
+
+.temp-tile{
+    min-width: 180px;
+    max-width: 260px;
+    text-align: center;
+    background: linear-gradient(133deg,rgba(110, 130, 230, 1) 0%, rgba(14, 148, 158, 1) 86%);
+    color: white;
+    padding: 12px;
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0; /* centered by grid column */
+}
+
+.temp-tile .value{
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+}
+.temp-tile .value .high{
+    font-size: 2.2em;
+    font-weight: 800;
+}
+.temp-tile .value .low{
+    font-size: 1.7em;
+    font-weight: 550;
+    opacity: 0.75;
+}
+
+/* Show details for all cards (same info across views) */
+.weather-card .details { display: flex; gap: 12px; }
+
+/* Right column in three-column layout */
+.card-right{
+    display:flex;
+    flex-direction:column;
+    align-items:flex-end;
+    justify-content:center;
+    gap:8px;
+    min-width: 120px;
+    padding-right: 12px; /* mirror left inset */
+    justify-self: end;
+}
+.card-right .right-item{ text-align:right; }
+.card-right .detail-label{ text-transform: none; color: #666; font-size: 0.85em; margin-bottom: 4px; }
+.card-right .detail-value{ font-weight:700; color:#222; }
+
+/* wind visual arrow */
+.wind-visual{ display:inline-flex; align-items:center; justify-content:center; margin-right:8px; }
+.wind-arrow{ display:inline-block; width:18px; height:18px; transform-origin: center center; color: #222; }
+
+/* stacked grid when multiple days are shown */
+.forecast-grid.stacked{ display: block; }
+.forecast-grid.stacked .weather-card{ max-width: 1000px; margin: 12px auto; padding: 14px 18px; }
+
+/* left column vertical centering and left-aligned condition/meta */
+.weather-card .card-left { justify-content: center; }
+.weather-card .condition { text-align: left; }
+
+@media (max-width: 768px) {
+    .weather-card .card-main{
+        display: flex;
+        flex-direction: column;
+        align-items: flex-start;
+    }
+    .weather-card .temp-tile{
+        width: 100%;
+        margin-top: 10px;
+    }
+    .weather-card .card-left{ padding-left: 0; }
+    .card-right{ align-items: flex-start; padding-right: 0; min-width: auto; }
+}
+
+/* Mobile-only layout: overrides applied only on narrow viewports */
+@media (max-width: 770px) {
+    /* compact page spacing */
+    body { padding: 10px; }
+    .container { max-width: 100%; padding: 0 8px; }
+
+    /* stacked grid for multi-day views: constrain width on phones */
+    .forecast-grid.stacked .weather-card{
+        max-width: 500px;
+        margin: 8px auto;
+        padding: 10px;
+    }
+
+    /* Make the card-main a 2-column grid where the left column holds date/day/condition
+       and the right column stacks the temp tile above the details (precip/wind),
+       allowing the right column contents to be right-aligned. */
+    .weather-card .card-main{
+        display: grid;
+        grid-template-columns: 1fr minmax(140px, 40%);
+        grid-template-areas: "left right" "left right";
+        gap: 8px 12px;
+        align-items: start;
+    }
+    .weather-card .card-left{
+        grid-area: left;
+        padding-left: 6px;
+        justify-self: start;
+        align-self: start;
+    }
+    /* place temperature tile into the right column and flush it to the right */
+    .weather-card .temp-column{
+        grid-area: right;
+        justify-self: end;
+        align-self: start;
+        margin-bottom: 6px;
+        /* ensure temp tile sits in the top row of the right column */
+        grid-row: 1 / 2;
+    }
+    /* stack details under the temp tile in the right column, right-aligned */
+    .weather-card .card-right{
+        grid-area: right;
+        display:flex;
+        flex-direction: column;
+        align-items: flex-end;
+        justify-content: flex-start;
+        padding: 6px 6px 0 6px;
+        /* push details to the second row under the temp tile */
+        grid-row: 2 / 3;
+    }
+
+    /* tighter visuals */
+    .weather-card { padding: 10px; border-radius: 10px; }
+    .weather-card .weather-icon { font-size: 1.9em; margin: 0; }
+    /* make the temperature tile more prominent on mobile */
+    .temp-tile { min-width: 140px; max-width: 260px; padding: 12px; }
+    .temp-tile .value .high { font-size: 2.0em; }
+    .temp-tile .value .low { font-size: 1.5em; }
+
+    /* suggestions and input should use full width */
+    .input-wrap { width: 100%; }
+    .input-wrap .suggestions { width: 100%; left: 0; right: 0; }
+}

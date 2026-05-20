@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Youtube Downloader</title>
+    <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Youtube Downloader</h1>
+            <p>Enter a YouTube link below, then choose audio or video.</p>
+        </div>
+        <form class="download-form" id="download-form">
+            <input id="youtube-url" type="text" placeholder="YouTube URL" aria-label="YouTube URL" />
+            <div class="button-row">
+                <button type="button" id="audio-download">Audio Download</button>
+                <button type="button" id="video-download">Video Download</button>
+            </div>
+            <div id="status" class="status-message" aria-live="polite"></div>
+            <div id="download-link" class="download-link" aria-live="polite"></div>
+            <div class="progress-container" aria-hidden="true">
+                <div class="progress-track">
+                    <div id="progress-bar" class="progress-bar"></div>
+                </div>
+                <div id="progress-text" class="progress-text">0%</div>
+            </div>
+        </form>
+    </div>
+
+    <script src="shared-layout.js"></script>
+    <script>
+
+    function updateStatus(message, percent = null, state = 'hidden', downloadUrl = null){
+        const status = document.getElementById('status');
+        if (status) status.textContent = message;
+        const progressContainer = document.querySelector('.progress-container');
+        const progressBar = document.getElementById('progress-bar');
+        const progressText = document.getElementById('progress-text');
+        const downloadLink = document.getElementById('download-link');
+        if (!progressContainer || !progressBar || !progressText || !downloadLink) {
+            return;
+        }
+
+        if (state === 'hidden') {
+            progressContainer.style.display = 'none';
+            progressBar.style.width = '0%';
+            progressBar.classList.remove('progress-success', 'progress-failure');
+            progressText.textContent = '0%';
+            downloadLink.innerHTML = '';
+            return;
+        }
+
+        progressContainer.style.display = 'flex';
+        const safePercent = Math.max(0, Math.min(100, percent ?? 0));
+        progressBar.style.width = `${safePercent}%`;
+        progressBar.classList.remove('progress-success', 'progress-failure');
+        if (state === 'completed') {
+            progressBar.classList.add('progress-success');
+        } else if (state === 'failed') {
+            progressBar.classList.add('progress-failure');
+        }
+        progressText.textContent = `${safePercent.toFixed(1)}%`;
+        if (state === 'completed' && downloadUrl) {
+            downloadLink.innerHTML = `<a href="${downloadUrl}" download>Download completed file</a>`;
+        } else {
+            downloadLink.innerHTML = '';
+        }
+    }
+
+    async function requestDownload(mode){
+        const urlInput = document.getElementById('youtube-url');
+        const url = urlInput ? urlInput.value.trim() : '';
+        if (!url) {
+            updateStatus('Please enter a YouTube URL.');
+            return;
+        }
+
+        updateStatus(`${mode === 'audio' ? 'Audio' : 'Video'} download starting...`, null, 'hidden');
+
+        try {
+            const response = await fetch('/api/download', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ mode, url }),
+            });
+
+            if (!response.ok) {
+                const data = await response.json();
+                updateStatus(data.error ? `Error: ${data.error}` : 'Download request failed.');
+                console.error('Download error:', data);
+                return;
+            }
+
+            const data = await response.json();
+            const jobId = data.job_id;
+            console.log('Download job started:', jobId);
+
+            // Poll for status immediately and then at regular intervals
+            pollDownloadStatus(jobId);
+        } catch (error) {
+            updateStatus('Request failed.');
+            console.error('Fetch failed:', error);
+        }
+    }
+
+    async function pollDownloadStatus(jobId) {
+        // Do an immediate poll first
+        fetchAndUpdateStatus(jobId);
+        
+        // Then poll at regular intervals
+        const pollInterval = setInterval(() => {
+            fetchAndUpdateStatus(jobId, pollInterval);
+        }, 500);
+    }
+
+    async function fetchAndUpdateStatus(jobId, pollInterval = null) {
+        try {
+            const response = await fetch(`/api/download-status/${jobId}`);
+            if (!response.ok) {
+                updateStatus('Error checking download status.');
+                if (pollInterval) clearInterval(pollInterval);
+                return;
+            }
+
+            const job = await response.json();
+            console.log(`Status: ${job.status} | Progress: ${job.progress_percent}% | Speed: ${job.speed_str} | ETA: ${job.eta_str}`);
+
+            if (job.status === 'queued') {
+                updateStatus('Waiting to download...', null, 'hidden');
+            } else if (job.status === 'downloading') {
+                let progressMsg = 'Downloading... ';
+                if (job.progress_percent > 0) {
+                    progressMsg += `${job.progress_percent.toFixed(1)}% of ${job.total_size_str}`;
+                } else {
+                    progressMsg += `Downloaded ${job.total_size_str}`;
+                }
+                if (job.speed_str && job.speed_str !== '--') {
+                    progressMsg += ` at ${job.speed_str}`;
+                }
+                if (job.eta_str && job.eta_str !== '--') {
+                    progressMsg += `, ETA ${job.eta_str}`;
+                }
+                updateStatus(progressMsg, job.progress_percent, 'downloading');
+            } else if (job.status === 'completed') {
+                updateStatus(`Download succeeded: ${job.file_name} (${formatFileSize(job.file_size)})`, 100, 'completed', job.download_url);
+                if (pollInterval) clearInterval(pollInterval);
+            } else if (job.status === 'failed') {
+                updateStatus(`Download failed: ${job.error}`, 100, 'failed');
+                if (pollInterval) clearInterval(pollInterval);
+            }
+        } catch (error) {
+            console.error('Poll error:', error);
+            if (pollInterval) clearInterval(pollInterval);
+        }
+    }
+
+    function formatFileSize(bytes) {
+        if (bytes === 0) return '0 B';
+        const k = 1024;
+        const sizes = ['B', 'KB', 'MB', 'GB'];
+        const i = Math.floor(Math.log(bytes) / Math.log(k));
+        return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i];
+    }
+
+    function downloadAudio(){
+        requestDownload('audio');
+    }
+
+    function downloadVideo(){
+        requestDownload('video');
+    }
+
+    document.getElementById('audio-download')?.addEventListener('click', downloadAudio);
+    document.getElementById('video-download')?.addEventListener('click', downloadVideo);
+    </script>
+</body>
+</html>

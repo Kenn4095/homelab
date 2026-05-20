@@ -1,0 +1,4 @@
+Flask>=2.2
+yt-dlp
+python-dotenv
+PyMySQL

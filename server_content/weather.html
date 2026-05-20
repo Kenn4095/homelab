@@ -1,0 +1,436 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Weather</title>
+    <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Weather</h1>
+            <div style="margin:12px 0;">
+                <div style="display:flex; justify-content:center;">
+                    <div style="position:relative;">
+                        <div class="location-info" id="location-info" style="margin-bottom:8px; color: #fff; text-align:center;">
+                            📍 Latitude: 40.001003 | Longitude: -75.21528
+                        </div>
+                        <form id="location-form" style="display:flex; gap:6px; align-items:center;">
+                            <div class="input-wrap" style="position:relative; flex:1;">
+                                <input id="city-input" aria-autocomplete="list" aria-haspopup="true" autocomplete="off" type="text" placeholder="Enter town or city..." style="flex:1; padding:8px 12px; border-radius:6px; border:0; min-width:160px; width:100%;" />
+                                <ul id="suggestions" class="suggestions" role="listbox" style="display:none;"></ul>
+                            </div>
+                            <button type="submit" style="padding:8px 12px; border-radius:6px; border:0; background:#fff; cursor:pointer;">Search</button>
+                        </form>
+                        <div style="display:flex; gap:8px; justify-content:center; margin-top:8px;">
+                            <div class="view-buttons" role="tablist" aria-label="Weather view buttons" style="display:flex; gap:6px;">
+                                <button class="view-btn active" data-days="1" aria-pressed="true" style="padding:6px 10px; border-radius:6px; border:0; cursor:pointer;">Today</button>
+                                <button class="view-btn" data-days="3" aria-pressed="false" style="padding:6px 10px; border-radius:6px; border:0; cursor:pointer;">3-Day</button>
+                                <button class="view-btn" data-days="7" aria-pressed="false" style="padding:6px 10px; border-radius:6px; border:0; cursor:pointer;">7-Day</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="forecast-grid" id="forecast-grid">
+            <!-- Weather cards will be injected here by JavaScript -->
+        </div>
+    </div>
+
+    <script src="shared-layout.js"></script>
+    <script>
+    // Map Open-Meteo weather codes to emoji and description
+    const weatherMap = {
+        0: ['☀️','Clear sky'],
+        1: ['🌤️','Mainly clear'],
+        2: ['⛅','Partly cloudy'],
+        3: ['☁️','Overcast'],
+        45: ['🌫️','Foggy'],
+        48: ['🌫️','Depositing rime fog'],
+        51: ['🌦️','Light drizzle'],
+        53: ['🌦️','Moderate drizzle'],
+        55: ['🌧️','Dense drizzle'],
+        61: ['🌧️','Slight rain'],
+        63: ['🌧️','Moderate rain'],
+        65: ['🌧️','Heavy rain'],
+        71: ['🌨️','Slight snow'],
+        73: ['🌨️','Moderate snow'],
+        75: ['❄️','Heavy snow'],
+        80: ['🌦️','Slight rain showers'],
+        81: ['🌧️','Moderate rain showers'],
+        82: ['⛈️','Violent rain showers'],
+        85: ['🌨️','Slight snow showers'],
+        86: ['❄️','Heavy snow showers'],
+        95: ['⛈️','Thunderstorm'],
+        96: ['⛈️','Thunderstorm with slight hail'],
+        99: ['⛈️','Thunderstorm with heavy hail']
+    };
+
+    
+
+    // AUTOSUGGEST: Debounce helper
+    function debounce(fn, wait){
+        let t;
+        return function(...args){
+            clearTimeout(t);
+            t = setTimeout(()=>fn.apply(this,args), wait);
+        }
+    }
+
+    // Suggest cities using Open-Meteo geocoding, prioritize US results
+    async function suggestCities(query){
+        if(!query) return [];
+        const url = `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(query)}&count=10`;
+        const res = await fetch(url);
+        if(!res.ok) return [];
+        const data = await res.json();
+        if(!data.results) return [];
+        // Prioritize US results but keep others
+        const us = [];
+        const others = [];
+        for(const r of data.results){
+            if(r.country_code && r.country_code.toUpperCase()==='US') us.push(r);
+            else others.push(r);
+        }
+        return us.concat(others);
+    }
+
+    // store last suggestions so keyboard selection can reference them
+    let lastSuggestions = [];
+    // current selected place and view length
+    let currentPlace = null;
+    let currentDays = 1; // default to Today view
+    // Render suggestion list
+    function renderSuggestions(list){
+        lastSuggestions = list || [];
+        const ul = document.getElementById('suggestions');
+        ul.innerHTML = '';
+        if(!list || list.length===0){ ul.style.display='none'; return; }
+        for(let i=0;i<list.length;i++){
+            const item = list[i];
+            const li = document.createElement('li');
+            li.setAttribute('role','option');
+            li.dataset.index = i;
+            li.textContent = `${item.name}${item.admin1 ? ', ' + item.admin1 : ''}${item.country ? ', ' + item.country : ''}`;
+            li.addEventListener('mousedown', (ev)=>{
+                ev.preventDefault();
+                // use the selected item's coordinates to fetch forecast directly
+                selectSuggestion(item);
+            });
+            ul.appendChild(li);
+        }
+        ul.style.display = 'block';
+    }
+
+    async function selectSuggestion(item){
+        const input = document.getElementById('city-input');
+        input.value = item.name + (item.admin1 ? ", " + item.admin1 : "") + (item.country ? ", " + item.country : "");
+        document.getElementById('suggestions').style.display = 'none';
+        try{
+            document.getElementById('location-info').textContent = `Searching: ${input.value}`;
+            // store current place
+            currentPlace = item;
+            // fetch forecast directly for the selected coordinates with the currentDays
+            const api = await fetchForecast(item.latitude, item.longitude, currentDays);
+            renderForecast(api, item, currentDays);
+        }catch(err){
+            console.error('Error fetching forecast for suggestion', err);
+            document.getElementById('location-info').textContent = 'Error fetching weather';
+        }
+    }
+
+    // Hook up input events
+    const inputEl = document.getElementById('city-input');
+    const debouncedSuggest = debounce(async ()=>{
+        const q = inputEl.value.trim();
+        if(!q){ renderSuggestions([]); return; }
+        try{
+            const results = await suggestCities(q);
+            renderSuggestions(results);
+        }catch(e){ console.warn('Suggest failed', e); renderSuggestions([]); }
+    }, 250);
+
+    inputEl.addEventListener('input', debouncedSuggest);
+    // hide suggestions on blur (allow click by small timeout)
+    inputEl.addEventListener('blur', ()=> setTimeout(()=>{ document.getElementById('suggestions').style.display='none'; }, 150));
+    inputEl.addEventListener('focus', ()=> { if(document.getElementById('suggestions').children.length) document.getElementById('suggestions').style.display='block'; });
+
+    // keyboard nav for suggestion list (basic)
+    inputEl.addEventListener('keydown', (ev)=>{
+        const ul = document.getElementById('suggestions');
+        if(ul.style.display==='none') return;
+        const items = Array.from(ul.children);
+        if(items.length===0) return;
+        const selected = items.findIndex(i=>i.getAttribute('aria-selected')==='true');
+        if(ev.key==='ArrowDown'){
+            ev.preventDefault();
+            const next = Math.min(items.length-1, selected+1);
+            items.forEach(i=>i.removeAttribute('aria-selected'));
+            items[next].setAttribute('aria-selected','true');
+            items[next].scrollIntoView({block:'nearest'});
+        }else if(ev.key==='ArrowUp'){
+            ev.preventDefault();
+            const prev = Math.max(0, selected-1);
+            items.forEach(i=>i.removeAttribute('aria-selected'));
+            items[prev].setAttribute('aria-selected','true');
+            items[prev].scrollIntoView({block:'nearest'});
+        }else if(ev.key==='Enter'){
+            // if one is selected, choose it
+            const sel = items.find(i=>i.getAttribute('aria-selected')==='true');
+            if(sel){
+                ev.preventDefault();
+                const idx = Number(sel.dataset.index);
+                if(lastSuggestions && lastSuggestions[idx]) selectSuggestion(lastSuggestions[idx]);
+            }
+        }
+    });
+
+    function mmToInches(mm){ return Math.round(mm * 0.0393701 * 100)/100 }
+    function kmhToMph(kmh){ return Math.round(kmh * 0.621371 * 10)/10 }
+    function cToF(c){ return Math.round((c * 9/5 + 32) * 10)/10 }
+
+    // Convert wind degrees to compass direction (N, NNE, NE, ...)
+    function degreesToCompass(deg){
+        if(deg === null || typeof deg === 'undefined') return '';
+        const directions = ['N','NNE','NE','ENE','E','ESE','SE','SSE','S','SSW','SW','WSW','W','WNW','NW','NNW'];
+        const idx = Math.round(((deg % 360) / 22.5)) % 16;
+        return directions[idx];
+    }
+
+    async function geocodeCity(city){
+        if(!city) return null;
+        // Helper to call the geocoding API
+        async function tryGeocode(q, count=1){
+            const url = `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(q)}&count=${count}`;
+            const res = await fetch(url);
+            if(!res.ok) return [];
+            const data = await res.json();
+            return data.results || [];
+        }
+
+        // US states mapping to detect state names/abbreviations
+        const states = {
+            'alabama':'AL','alaska':'AK','arizona':'AZ','arkansas':'AR','california':'CA','colorado':'CO','connecticut':'CT','delaware':'DE','florida':'FL','georgia':'GA','hawaii':'HI','idaho':'ID','illinois':'IL','indiana':'IN','iowa':'IA','kansas':'KS','kentucky':'KY','louisiana':'LA','maine':'ME','maryland':'MD','massachusetts':'MA','michigan':'MI','minnesota':'MN','mississippi':'MS','missouri':'MO','montana':'MT','nebraska':'NE','nevada':'NV','new hampshire':'NH','new jersey':'NJ','new mexico':'NM','new york':'NY','north carolina':'NC','north dakota':'ND','ohio':'OH','oklahoma':'OK','oregon':'OR','pennsylvania':'PA','rhode island':'RI','south carolina':'SC','south dakota':'SD','tennessee':'TN','texas':'TX','utah':'UT','vermont':'VT','virginia':'VA','washington':'WA','west virginia':'WV','wisconsin':'WI','wyoming':'WY','district of columbia':'DC'};
+
+        // Try the exact input first
+        let results = await tryGeocode(city, 1);
+        if(results.length) return results[0];
+
+        // Split tokens by comma and trim
+        const parts = city.split(',').map(s=>s.trim()).filter(Boolean);
+        const lowerParts = parts.map(p=>p.toLowerCase());
+
+        // If trailing token is a US country indicator, strip it and try again
+        const usCountries = ['united states','united states of america','usa','us'];
+        if(parts.length>1 && usCountries.includes(lowerParts[lowerParts.length-1])){
+            const withoutCountry = parts.slice(0,-1).join(', ');
+            results = await tryGeocode(withoutCountry,1);
+            if(results.length) return results[0];
+        }
+
+        // If last token looks like a US state (full name or abbrev), try city+state and city only
+        let last = lowerParts[lowerParts.length-1] || '';
+        let isState = false;
+        if(states[last]) isState = true; // full name
+        // check abbreviation
+        if(!isState){
+            const lastUp = parts[parts.length-1].toUpperCase();
+            if(Object.values(states).includes(lastUp)) isState = true;
+        }
+
+        if(parts.length>=2){
+            const firstTwo = parts.slice(0,2).join(', ');
+            results = await tryGeocode(firstTwo,1);
+            if(results.length) return results[0];
+
+            // If last token is a state name, also try appending 'United States'
+            if(isState){
+                const withUs = firstTwo + ', United States';
+                results = await tryGeocode(withUs,1);
+                if(results.length) return results[0];
+            }
+
+            // fallback to city-only
+            const cityOnly = parts[0];
+            results = await tryGeocode(cityOnly,1);
+            if(results.length) return results[0];
+        }
+
+        // Final fallback: try adding 'USA' to the query
+        results = await tryGeocode(city + ', USA',1);
+        if(results.length) return results[0];
+
+        return null;
+    }
+
+    // fetchForecast accepts a days parameter (1,3,7 etc.)
+    async function fetchForecast(lat, lon, days=3){
+        // choose fields; for 7-day we don't need 'apparent_temperature' or extra fields if not desired,
+        // but we'll still request the full set and trim in rendering for simplicity and consistency.
+        const params = new URLSearchParams({
+            latitude: lat,
+            longitude: lon,
+            daily: 'temperature_2m_max,temperature_2m_min,apparent_temperature_max,apparent_temperature_min,precipitation_sum,precipitation_probability_max,weather_code,wind_speed_10m_max,winddirection_10m_dominant',
+            timezone: 'auto',
+            forecast_days: days
+        });
+        const url = `https://api.open-meteo.com/v1/forecast?${params.toString()}`;
+        const res = await fetch(url);
+        if(!res.ok) throw new Error('Forecast fetch failed');
+        return res.json();
+    }
+
+    function renderForecast(apiResponse, location, days=3){
+        const grid = document.getElementById('forecast-grid');
+        grid.innerHTML = '';
+        if(!apiResponse || !apiResponse.daily) {
+            grid.innerHTML = '<div style="color:#fff; text-align:center;">No forecast available</div>';
+            return;
+        }
+
+        const daily = apiResponse.daily;
+        const timezone = apiResponse.timezone || '';
+        // unified layout: all views use the same card format; only the number of cards changes
+        // When more than one day is shown, stack cards vertically for readability
+        if(days > 1){
+            grid.classList.add('stacked');
+        }else{
+            grid.classList.remove('stacked');
+        }
+        // For US locations prefer state (admin1) instead of country
+        let areaLabel = '';
+        if(location && location.country_code && location.country_code.toUpperCase() === 'US'){
+            areaLabel = location.admin1 || location.country || '';
+        }else{
+            areaLabel = location.country || location.admin1 || '';
+        }
+
+        document.getElementById('location-info').textContent = `📍 ${(location.name||'').trim()}${areaLabel ? ', ' + areaLabel : ''}`;
+
+        for(let i=0;i<daily.time.length;i++){
+            const date = daily.time[i];
+            // format date as MM-DD-YYYY
+            const parts = date.split('-'); // YYYY-MM-DD
+            const formattedDate = parts.length===3 ? `${parts[1]} / ${parts[2]} / ${parts[0]}` : date;
+            // Use the forecast timezone (if available) to compute correct day-of-week
+            // Create a midday UTC timestamp for the date and format it in the target timezone
+            const middayUtc = new Date(date + 'T12:00:00Z');
+            const dayOfWeek = new Intl.DateTimeFormat(undefined, { weekday: 'long', timeZone: timezone || 'UTC' }).format(middayUtc);
+            const code = daily.weather_code[i];
+            const icon = (weatherMap[code] && weatherMap[code][0]) || '❓';
+            const cond = (weatherMap[code] && weatherMap[code][1]) || 'Unknown';
+            const maxC = daily.temperature_2m_max[i];
+            const minC = daily.temperature_2m_min[i];
+            const feelsMaxC = daily.apparent_temperature_max[i];
+            const feelsMinC = daily.apparent_temperature_min[i];
+            const precip = mmToInches(daily.precipitation_sum[i] || 0);
+            const precipProb = (daily.precipitation_probability_max && typeof daily.precipitation_probability_max[i] !== 'undefined') ? daily.precipitation_probability_max[i] : null;
+            const windMph = kmhToMph(daily.wind_speed_10m_max[i] || 0);
+            const windDeg = (daily.winddirection_10m_dominant && typeof daily.winddirection_10m_dominant[i] !== 'undefined') ? daily.winddirection_10m_dominant[i] : null;
+            // arrow should point to where the wind is going (not coming from) -> rotate +180
+            const arrowRot = windDeg !== null ? ((windDeg + 180) % 360) : 0;
+            const card = document.createElement('div');
+            // For the first day, keep the 'current-day' accent regardless of view
+            card.className = 'weather-card' + (i===0? ' current-day':'');
+
+            // Use a uniform detailed layout for all views; render as three columns: left/meta, middle/temp, right/details
+            card.innerHTML = `
+                <div class="card-main">
+                    <div class="card-left">
+                        <div class="meta">
+                            <div class="date">${formattedDate}</div>
+                            <div class="day-of-week">${dayOfWeek}</div>
+                        </div>
+                        <div class="weather-icon">${icon}</div>
+                        <div class="condition">${cond}</div>
+                    </div>
+                    <div class="temp-column">
+                        <div class="temp-tile">
+                            <div class="value">
+                                <span class="high">${cToF(maxC)}°F</span>
+                                <span class="low">${cToF(minC)}°F</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="card-right">
+                        <div class="right-item">
+                            <div class="detail-label">Precipitation</div>
+                            <div class="detail-value">${precipProb !== null ? precipProb + '%' : '—'}${precip ? ' • ' + precip + '"' : ''}</div>
+                        </div>
+                        <div class="right-item">
+                            <div class="detail-label">Wind</div>
+                            <div class="detail-value">${windDeg !== null ? ('<span class="wind-visual">' + ('<svg class="wind-arrow" viewBox="0 0 24 24" width="18" height="18" style="transform: rotate(' + arrowRot + 'deg);"><path d="M12 2 L19 21 L12 17 L5 21 Z" fill="currentColor"/></svg>') + '</span>') : ''}${windMph} mph</div>
+                        </div>
+                    </div>
+                </div>`;
+
+            grid.appendChild(card);
+        }
+    }
+
+    document.getElementById('location-form').addEventListener('submit', async (e)=>{
+        e.preventDefault();
+        const city = document.getElementById('city-input').value.trim();
+        if(!city) return;
+        try{
+            document.getElementById('location-info').textContent = 'Searching for location...';
+            const place = await geocodeCity(city);
+            if(!place){
+                document.getElementById('location-info').textContent = 'Location not found';
+                return;
+            }
+            currentPlace = place;
+            const api = await fetchForecast(place.latitude, place.longitude, currentDays);
+            renderForecast(api, place, currentDays);
+        }catch(err){
+            console.error(err);
+            document.getElementById('location-info').textContent = 'Error fetching weather';
+        }
+    });
+
+    // On load, optionally fetch the default coords shown in the page
+    (async ()=>{
+        try{
+            const defaultLat = 40.0051;
+            const defaultLon = -75.2112;
+            // ensure currentDays is used for default load
+            const api = await fetchForecast(defaultLat, defaultLon, currentDays);
+            currentPlace = { name: 'Home', latitude: defaultLat, longitude: defaultLon, country:'' };
+            renderForecast(api, currentPlace, currentDays);
+        }catch(e){ console.warn('Default fetch failed', e); }
+    })();
+
+    // Hook up the view selector to refresh the forecast for the current place
+        // view buttons: set currentDays and refresh
+        function setActiveView(days){
+            currentDays = days;
+            document.querySelectorAll('.view-btn').forEach(b=>{
+                const d = Number(b.dataset.days);
+                const active = d === days;
+                b.classList.toggle('active', active);
+                b.setAttribute('aria-pressed', active ? 'true' : 'false');
+            });
+        }
+
+        document.querySelectorAll('.view-btn').forEach(btn=>{
+            btn.addEventListener('click', async (e)=>{
+                const days = Number(btn.dataset.days) || 1;
+                setActiveView(days);
+                if(currentPlace){
+                    try{
+                        document.getElementById('location-info').textContent = 'Updating view...';
+                        const api = await fetchForecast(currentPlace.latitude, currentPlace.longitude, days);
+                        renderForecast(api, currentPlace, days);
+                    }catch(err){
+                        console.error('Error updating view', err);
+                        document.getElementById('location-info').textContent = 'Error updating view';
+                    }
+                }
+            });
+        });
+    </script>
+</body>
+</html>

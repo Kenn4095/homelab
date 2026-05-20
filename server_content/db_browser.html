@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>DB Browser</title>
+  <link rel="stylesheet" href="style.css" />
+  <style>
+    .wrap { max-width: 1100px; margin: 0 auto; padding: 18px; }
+    nav.table-nav { margin-bottom: 12px; display: flex; flex-wrap: wrap; gap: 6px; }
+    nav.table-nav a { display: inline-block; padding: 6px 10px; border: 1px solid #ddd; border-radius: 6px; text-decoration: none; color: #222; }
+    nav.table-nav a.active { background: #667eea; color: #fff; border-color: #667eea; }
+    table { border-collapse: collapse; width: 100%; margin-top: 12px; }
+    th, td { border: 1px solid #ddd; padding: 8px; }
+    th { background: #f4f4f4; text-align: left; }
+    caption { font-weight: 700; margin-bottom: 8px; }
+    .error { color: #b00020; }
+    .success { color: #1b7a1b; margin-top: 8px; }
+    .guestbook-form { margin: 12px 0; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+    .guestbook-form input { padding: 8px; border-radius: 6px; border: 1px solid #ccc; flex: 1; min-width: 200px; }
+    .guestbook-form button { padding: 8px 12px; border-radius: 6px; border: 0; background: #667eea; color: #fff; cursor: pointer; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>Database Browser</h1>
+    <p>Database: <strong>{{ db_name }}</strong></p>
+    {% if error %}
+      <p class="error">{{ error }}</p>
+    {% endif %}
+    {% if success %}
+      <p class="success">{{ success }}</p>
+    {% endif %}
+
+    <form method="post" action="" class="guestbook-form">
+      <input name="name" type="text" placeholder="Your name" maxlength="255" required />
+      <input type="hidden" name="action" value="guestbook_add" />
+      <button type="submit">Sign Guestbook</button>
+    </form>
+
+    <nav class="table-nav" aria-label="Database tables">
+      {% for table in tables %}
+        <a class="{% if table == selected_table %}active{% endif %}" href="?table={{ table | urlencode }}">{{ table }}</a>
+      {% endfor %}
+    </nav>
+
+    {% if selected_table %}
+      <h2>Contents of {{ selected_table }}</h2>
+      {% if table_rows %}
+        <table>
+          <thead>
+            <tr>
+              {% for header in table_headers %}
+                <th>{{ header }}</th>
+              {% endfor %}
+            </tr>
+          </thead>
+          <tbody>
+            {% for row in table_rows %}
+              <tr>
+                {% for cell in row %}
+                  <td>{{ cell }}</td>
+                {% endfor %}
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      {% else %}
+        <p>No rows found in table.</p>
+      {% endif %}
+    {% else %}
+      <p>Select a table above to view its rows.</p>
+    {% endif %}
+  </div>
+
+  <script src="shared-layout.js"></script>
+</body>
+</html>
