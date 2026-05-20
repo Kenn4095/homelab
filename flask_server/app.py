@@ -17,7 +17,7 @@ VIDEO_DIR = os.environ.get('VIDEO_DOWNLOAD_DIR', r'D:\Server_Output\Video')
 # Database configuration from environment or defaults
 DB_HOST = os.environ.get('DB_HOST', '127.0.0.1')
 DB_USER = os.environ.get('DB_USER', 'webuser')
-DB_PASS = os.environ.get('DB_PASS', 'Joseph123')
+DB_PASS = os.environ.get('DB_PASS', 'password')
 DB_NAME = os.environ.get('DB_NAME', 'home_server')
 
 app = Flask(__name__, static_folder=STATIC_DIR, template_folder=STATIC_DIR)
